@@ -1,14 +1,13 @@
-import os
+from db import db
+
 from typing import List, Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from bson import ObjectId
-import motor.motor_asyncio
 
 
 app = FastAPI()
-client = motor.motor_asyncio.AsyncIOMotorClient(os.environ['MONGODB_URL'])  # Set with export in .env
-db = client.stuff  # Set client to the Stuff Collection
 
 
 class PyObjectId(ObjectId):
@@ -29,8 +28,8 @@ class PyObjectId(ObjectId):
 
 class StuffModel(BaseModel):
     '''Generic Model Item'''
-    id = PyObjectId = Field(default_factory=PyObjectId, alias='_id')
-    name: str = Field(...)
+    id: PyObjectId = Field(default_factory=PyObjectId, alias='_id')
+    name: str = Field()
     description: Optional[str] = None
     categories: List[str] = []
 
@@ -40,3 +39,12 @@ class UpdateStuffModel(BaseModel):
     name: Optional[str]
     description: Optional[str]
     categories: List[str] = []
+
+
+@app.post('/', response_description='Create item', response_model=StuffModel)
+async def create_item(item: StuffModel = Body(...)):
+    item = jsonable_encoder(item)
+    new_item = await db['itens'].insert_one(item)
+    created_item = await db['itens'].find_one({'_id':new_item.inserted_id})
+
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=created_item)
